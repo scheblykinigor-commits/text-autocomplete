@@ -1,0 +1,24 @@
+data:
+  input_file: "/home/ubuntu/text-autocomplete/data/tweets.txt"
+  output_dir: "/home/ubuntu/text-autocomplete/data"
+  train_ratio: 0.8
+  val_ratio: 0.1
+  test_ratio: 0.1
+
+model:
+  embedding_dim: 128
+  hidden_dim: 128
+  num_layers: 2
+  dropout: 0.2
+  vocab_size: 10002
+
+training:
+  batch_size: 256
+  learning_rate: 0.001
+  num_epochs: 10
+  seq_length: 20
+
+generation:
+  max_length: 20
+  temperature: 1.0
+  top_k: 50
