@@ -10,7 +10,7 @@ def evaluate_transformer():
     generator = pipeline("text-generation", model="distilgpt2")
     tokenizer = AutoTokenizer.from_pretrained("distilgpt2")
     
-    test_df = pd.read_csv('F:/text-autocomplete/data/test.csv')
+    test_df = pd.read_csv('/home/ubuntu/text-autocomplete/data/test.csv')
     test_df['tokens'] = test_df['tokens'].apply(eval)
     test_df['text'] = test_df['cleaned_text']
     

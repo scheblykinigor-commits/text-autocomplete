@@ -83,8 +83,8 @@ def main():
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f"Using device: {device}")
     
-    train_dataset = NextTokenDataset('F:/text-autocomplete/data/train.csv')
-    val_dataset = NextTokenDataset('F:/text-autocomplete/data/val.csv')
+    train_dataset = NextTokenDataset('/home/ubuntu/text-autocomplete/data/train.csv')
+    val_dataset = NextTokenDataset('/home/ubuntu/text-autocomplete/data/val.csv')
     
     train_loader = DataLoader(train_dataset, batch_size=256, shuffle=True)
     val_loader = DataLoader(val_dataset, batch_size=256, shuffle=False)
@@ -104,7 +104,7 @@ def main():
         num_epochs=10, lr=0.001
     )
     
-    os.makedirs('F:/text-autocomplete/models', exist_ok=True)
+    os.makedirs('/home/ubuntu/text-autocomplete/models', exist_ok=True)
     torch.save({
         'model_state_dict': model.state_dict(),
         'vocab': train_dataset.vocab,
@@ -114,7 +114,7 @@ def main():
             'hidden_dim': 128,
             'num_layers': 2
         }
-    }, 'F:/text-autocomplete/models/lstm_model.pth')
+    }, '/home/ubuntu/text-autocomplete/models/lstm_model.pth')
     
     print("Модель сохранена")
 

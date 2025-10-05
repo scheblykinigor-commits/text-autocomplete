@@ -81,6 +81,6 @@ def prepare_dataset(input_file, output_dir):
     return train_df, val_df, test_df
 
 if __name__ == "__main__":
-    input_file = "F:/text-autocomplete/data/tweets.txt"
-    output_dir = "F:/text-autocomplete/data"
+    input_file = "/home/ubuntu/text-autocomplete/data/tweets.txt"
+    output_dir = "/home/ubuntu/text-autocomplete/data"
     prepare_dataset(input_file, output_dir)
