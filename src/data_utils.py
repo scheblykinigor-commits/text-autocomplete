@@ -7,102 +7,80 @@ import os
 
 nltk.download('punkt')
 
-def download_dataset(url="https://code.s3.yandex.net/deep-learning/tweets.txt", save_path="../data/raw_dataset.csv"):
-    """Скачивание датасета"""
-    try:
-        # Пробуем разные способы загрузки
-        df = pd.read_csv(url, encoding='latin-1', header=None, names=['target', 'id', 'date', 'flag', 'user', 'text'], 
-                        quoting=3, error_bad_lines=False)
-    except:
-        try:
-            # Альтернативный способ загрузки
-            df = pd.read_csv(url, encoding='latin-1', header=None, 
-                           names=['target', 'id', 'date', 'flag', 'user', 'text'],
-                           on_bad_lines='skip')
-        except:
-            # Самый простой способ - загрузить как текст и разобрать вручную
-            df = pd.read_csv(url, encoding='latin-1', header=None)
-            # Оставляем только первые 6 колонок
-            df = df.iloc[:, :6]
-            df.columns = ['target', 'id', 'date', 'flag', 'user', 'text']
+def load_and_clean_data(file_path):
+    """
+    Загрузка и очиститка набора данных
+    """
+    with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+        texts = f.readlines()
     
-    # Сохраняем сырые данные
-    os.makedirs(os.path.dirname(save_path), exist_ok=True)
-    df.to_csv(save_path, index=False)
+    df = pd.DataFrame({'text': texts})
+    
+    df = df[df['text'].str.strip().astype(bool)]
+    
     return df
 
 def clean_text(text):
-    """Очистка и нормализация текста"""
+    """
+    Очистка и нормализация текста
+    """
     if not isinstance(text, str):
         return ""
     
-    # Приведение к нижнему регистру
     text = text.lower()
     
-    # Удаление ссылок
-    text = re.sub(r'http\S+', '', text)
+    text = re.sub(r'http\S+|www\S+|https\S+', '', text, flags=re.MULTILINE)
     
-    # Удаление упоминаний
     text = re.sub(r'@\w+', '', text)
     
-    # Удаление хэштегов
-    text = re.sub(r'#\w+', '', text)
-    
-    # Удаление специальных символов, оставляем только буквы, цифры и основные знаки препинания
-    text = re.sub(r'[^a-zA-Zа-яА-Я0-9\s\.\,\!\?\:]', '', text)
-    
-    # Удаление лишних пробелов
+    text = re.sub(r'[^\w\s]', ' ', text)
     text = re.sub(r'\s+', ' ', text).strip()
     
     return text
 
-def tokenize_text(text):
-    """Токенизация текста"""
-    return word_tokenize(text)
+def tokenize_texts(texts):
+    """
+    Токенизация списка текстов
+    """
+    tokenized_texts = []
+    for text in texts:
+        tokens = word_tokenize(text)
+        tokenized_texts.append(tokens)
+    return tokenized_texts
 
-def prepare_dataset(raw_data_path="../data/raw_dataset.csv", processed_data_path="../data/dataset_processed.csv"):
-    """Основная функция подготовки данных"""
+def prepare_dataset(input_file, output_dir):
+    """
+    Основная функция подготовки набора данных
+    """
+    df = load_and_clean_data(input_file)
     
-    # Загрузка данных
-    df = pd.read_csv(raw_data_path)
-    
-    # Очистка текста
-    print("Очистка текста...")
     df['cleaned_text'] = df['text'].apply(clean_text)
     
-    # Токенизация
-    print("Токенизация...")
-    df['tokens'] = df['cleaned_text'].apply(tokenize_text)
+    df = df[df['cleaned_text'].str.len() > 10]
     
-    # Удаление пустых текстов
+    tokenized_texts = tokenize_texts(df['cleaned_text'].tolist())
+    df['tokens'] = tokenized_texts
+    
     df = df[df['tokens'].apply(len) > 0]
     
-    # Сохранение обработанного датасета
-    os.makedirs(os.path.dirname(processed_data_path), exist_ok=True)
-    df.to_csv(processed_data_path, index=False)
-    
-    print(f"Обработано {len(df)} записей")
-    return df
-
-def split_dataset(processed_data_path="../data/dataset_processed.csv"):
-    """Разделение датасета на train/val/test"""
-    
-    df = pd.read_csv(processed_data_path)
-    
-    # Преобразование строки токенов обратно в список
-    df['tokens'] = df['tokens'].apply(eval)
-    
-    # Разделение на train (80%), temp (20%)
     train_df, temp_df = train_test_split(df, test_size=0.2, random_state=42)
-    
-    # Разделение temp на val (10%) и test (10%)
     val_df, test_df = train_test_split(temp_df, test_size=0.5, random_state=42)
     
-    # Сохранение разделенных датасетов
-    train_df.to_csv("../data/train.csv", index=False)
-    val_df.to_csv("../data/val.csv", index=False)
-    test_df.to_csv("../data/test.csv", index=False)
+    os.makedirs(output_dir, exist_ok=True)
     
-    print(f"Train: {len(train_df)}, Val: {len(val_df)}, Test: {len(test_df)}")
+    df[['cleaned_text', 'tokens']].to_csv(os.path.join(output_dir, 'dataset_processed.csv'), index=False)
+    train_df[['cleaned_text', 'tokens']].to_csv(os.path.join(output_dir, 'train.csv'), index=False)
+    val_df[['cleaned_text', 'tokens']].to_csv(os.path.join(output_dir, 'val.csv'), index=False)
+    test_df[['cleaned_text', 'tokens']].to_csv(os.path.join(output_dir, 'test.csv'), index=False)
+    
+    print(f"Dataset prepared:")
+    print(f"Train: {len(train_df)} samples")
+    print(f"Validation: {len(val_df)} samples")
+    print(f"Test: {len(test_df)} samples")
     
     return train_df, val_df, test_df
+
+if __name__ == "__main__":
+    input_file = "F:/text-autocomplete/data/tweets.txt"
+    output_dir = "F:/text-autocomplete/data"
+    prepare_dataset(input_file, output_dir)

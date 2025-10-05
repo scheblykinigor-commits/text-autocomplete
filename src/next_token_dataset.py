@@ -5,56 +5,75 @@ from collections import Counter
 import numpy as np
 
 class NextTokenDataset(Dataset):
-    def __init__(self, data_path, vocab=None, max_length=50):
+    def __init__(self, data_path, seq_length=20):
+        """
+        Dataset for next token prediction
+        
+        Args:
+            data_path: Path to CSV file with tokens
+            seq_length: Length of input sequences
+        """
         self.df = pd.read_csv(data_path)
+        self.seq_length = seq_length
+        
         self.df['tokens'] = self.df['tokens'].apply(eval)
-        self.max_length = max_length
         
-        # Создание или использование существующего словаря
-        if vocab is None:
-            self.vocab = self._build_vocab()
-        else:
-            self.vocab = vocab
-            
-        self.vocab_size = len(self.vocab)
+        self._build_vocab()
         
+        self.sequences = self._prepare_sequences()
+    
     def _build_vocab(self):
-        """Построение словаря"""
+        """Создаем словарный запас из всех токенов"""
         all_tokens = []
         for tokens in self.df['tokens']:
             all_tokens.extend(tokens)
-            
-        token_counts = Counter(all_tokens)
-        vocab = {token: idx + 2 for idx, (token, count) in enumerate(token_counts.items())}  # +2 для резервирования индексов
-        vocab['<PAD>'] = 0
-        vocab['<UNK>'] = 1
         
-        return vocab
+        token_counts = Counter(all_tokens)
+        
+        self.vocab = {token: idx + 2 for idx, (token, _) in enumerate(token_counts.most_common(10000))}
+        self.vocab['<pad>'] = 0
+        self.vocab['<unk>'] = 1
+        
+        self.idx_to_token = {idx: token for token, idx in self.vocab.items()}
+        
+        self.vocab_size = len(self.vocab)
     
-    def text_to_indices(self, tokens):
-        """Преобразование токенов в индексы"""
-        return [self.vocab.get(token, self.vocab['<UNK>']) for token in tokens]
+    def _prepare_sequences(self):
+        """Подготовка последовательности тренировок"""
+        sequences = []
+        for tokens in self.df['tokens']:
+            if len(tokens) < 2:
+                continue
+                
+            token_indices = [self.vocab.get(token, self.vocab['<unk>']) for token in tokens]
+            
+            for i in range(len(token_indices) - self.seq_length):
+                input_seq = token_indices[i:i + self.seq_length]
+                target_seq = token_indices[i + 1:i + self.seq_length + 1]
+                sequences.append((input_seq, target_seq))
+        
+        return sequences
     
     def __len__(self):
-        return len(self.df)
+        return len(self.sequences)
     
     def __getitem__(self, idx):
-        tokens = self.df.iloc[idx]['tokens']
+        input_seq, target_seq = self.sequences[idx]
         
-        if len(tokens) > self.max_length:
-            tokens = tokens[:self.max_length]
+        return (
+            torch.tensor(input_seq, dtype=torch.long),
+            torch.tensor(target_seq, dtype=torch.long)
+        )
+    
+    def decode_tokens(self, indices):
+        """Convert indices back to tokens"""
+        if isinstance(indices, torch.Tensor):
+            indices = indices.cpu().numpy()
         
-        # Создание входной последовательности и цели (сдвиг на 1 токен)
-        input_indices = self.text_to_indices(tokens[:-1])
-        target_indices = self.text_to_indices(tokens[1:])
+        tokens = []
+        for idx in indices:
+            if idx == self.vocab['<pad>']:
+                break
+            tokens.append(self.idx_to_token.get(idx, '<unk>'))
         
-        # Добавление паддинга
-        while len(input_indices) < self.max_length - 1:
-            input_indices.append(self.vocab['<PAD>'])
-            target_indices.append(self.vocab['<PAD>'])
-        
-        return {
-            'input_ids': torch.tensor(input_indices, dtype=torch.long),
-            'target_ids': torch.tensor(target_indices, dtype=torch.long),
-            'length': len(tokens) - 1
-        }
+        return tokens
